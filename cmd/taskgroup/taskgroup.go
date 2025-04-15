@@ -12,7 +12,7 @@ type Group struct {
 	wg sync.WaitGroup
 }
 
-func (g *Group) Add(fn func()) {
+func (g *Group) Go(fn func()) {
 	g.wg.Add(1)
 	go func() {
 		defer g.wg.Done()

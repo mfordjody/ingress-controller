@@ -19,9 +19,11 @@ func main() {
 	c := controller.NewIngressController(client)
 
 	group := &taskgroup.Group{}
-	group.Add(func() {
+	group.Go(func() {
 		c.Run(5, nil)
 	})
+	
+	group.Wait()
 }
 
 func getKubeconfig() *kubernetes.Clientset {
