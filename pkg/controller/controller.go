@@ -55,8 +55,8 @@ func NewIngressController(client *kubernetes.Clientset) *IngressController {
 }
 
 func (c *IngressController) processNextItem() bool {
-	item, quit := c.queue.Get()
-	if quit {
+	item, shutdown := c.queue.Get()
+	if shutdown {
 		return false
 	}
 	defer c.queue.Done(item)

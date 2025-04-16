@@ -3,6 +3,7 @@ module dubbo-kubernetes-ingress-controller
 go 1.23.0
 
 require (
+	github.com/demdxx/gocast v1.2.0
 	github.com/rs/zerolog v1.34.0
 	k8s.io/api v0.32.3
 	k8s.io/apimachinery v0.32.3
