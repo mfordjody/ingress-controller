@@ -1,0 +1,73 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: aaa-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"  # 强制 HTTPS
+spec:
+  tls:
+    - hosts:
+        - aaa.example.local
+      secretName: ingress-aaa-secret
+  ingressClassName: "dubbo"
+  rules:
+  - host: aaa.example.local
+    http:
+      paths:
+        - path: /
+          pathType: Prefix
+          backend:
+            service:
+              name: nginx
+              port:
+                number: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: bbb-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"  # 强制 HTTPS
+spec:
+  tls:
+    - hosts:
+        - bbb.example.local
+      secretName: ingress-bbb-secret
+  ingressClassName: "dubbo"
+  rules:
+  - host: bbb.example.local
+    http:
+      paths:
+        - path: /
+          pathType: Prefix
+          backend:
+            service:
+              name: nginx
+              port:
+                number: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ccc-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"  # 强制 HTTPS
+spec:
+  tls:
+    - hosts:
+        - ccc.example.local
+      secretName: ingress-ccc-secret
+  ingressClassName: "dubbo"
+  rules:
+  - host: ccc.example.local
+    http:
+      paths:
+        - path: /
+          pathType: Prefix
+          backend:
+            service:
+              name: nginx
+              port:
+                number: 80
+
+

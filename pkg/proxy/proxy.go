@@ -24,11 +24,11 @@ func Render(client *kubernetes.Clientset) {
 	}
 
 	// Iterate through each Ingress resource
+	serverMap := make(map[string]*server.Server)
 	for _, ing := range ingressList.Items {
 		for _, rule := range ing.Spec.Rules {
 			for _, path := range rule.HTTP.Paths {
-				serverMap := make(map[string]*server.Server)
-				host := rule.Host
+				host := rule.Host + path.Path
 				if _, ok := serverMap[path.Path]; !ok {
 					var srv *server.Server
 					srv = &server.Server{

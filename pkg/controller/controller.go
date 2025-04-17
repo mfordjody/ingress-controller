@@ -1,25 +1,32 @@
 package controller
 
 import (
+	"context"
+	"dubbo-kubernetes-ingress-controller/cmd/wgroup"
+	"dubbo-kubernetes-ingress-controller/pkg/proxy"
 	"fmt"
 	"github.com/rs/zerolog/log"
 	networkingV1 "k8s.io/api/networking/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
+	"time"
 )
 
 type IngressController struct {
-	clientSet *kubernetes.Clientset
-	queue     workqueue.RateLimitingInterface
-	indexer   cache.Indexer
-	informer  cache.Controller
+	clientSet    *kubernetes.Clientset
+	queue        workqueue.RateLimitingInterface
+	indexer      cache.Indexer
+	informer     cache.Controller
+	ingressClass string
 }
 
-func NewIngressController(client *kubernetes.Clientset) *IngressController {
+func NewIngressController(client *kubernetes.Clientset, ingressClass string) *IngressController {
 	ListWatcher := cache.NewListWatchFromClient(client.NetworkingV1().RESTClient(), "ingresses", "", fields.Everything())
 	queue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
 	indexer, informer := cache.NewIndexerInformer(ListWatcher, &networkingV1.Ingress{}, 0, cache.ResourceEventHandlerFuncs{
@@ -47,10 +54,11 @@ func NewIngressController(client *kubernetes.Clientset) *IngressController {
 	}, cache.Indexers{})
 
 	return &IngressController{
-		clientSet: client,
-		queue:     queue,
-		indexer:   indexer,
-		informer:  informer,
+		clientSet:    client,
+		queue:        queue,
+		indexer:      indexer,
+		informer:     informer,
+		ingressClass: ingressClass,
 	}
 }
 
@@ -86,25 +94,18 @@ func (c *IngressController) processNextItem() bool {
 // handleErr checks if an error happened and makes sure we will retry later.
 func (c *IngressController) handleErr(err error, key any) {
 	if err == nil {
-		// Forget about the #AddRateLimited history of the key on every successful synchronization.
-		// This ensures that future processing of updates for this key is not delayed because of
-		// an outdated error history.
 		c.queue.Forget(key)
 		return
 	}
 
 	// This controller retries 5 times if something goes wrong. After that, it stops trying.
 	if c.queue.NumRequeues(key) < 5 {
-		klog.Infof("Error syncing pod %v: %v", key, err)
-
-		// Re-enqueue the key rate limited. Based on the rate limiter on the
-		// queue and the re-enqueue history, the key will be processed later again.
+		klog.Infof("Error syncing ingress %v: %v", key, err)
 		c.queue.AddRateLimited(key)
 		return
 	}
 
 	c.queue.Forget(key)
-	// Report to an external entity that, even after several retries, we could not successfully process this key
 	runtime.HandleError(err)
 	klog.Infof("Dropping ingress %q out of the queue: %v", key, err)
 }
@@ -113,17 +114,36 @@ func (c *IngressController) handleErr(err error, key any) {
 // information about the ingress to stdout. In case an error happened, it has to simply return the error.
 // The retry logic should not be part of the business logic.
 func (c *IngressController) syncToStdout(key string) error {
-	obj, exists, err := c.indexer.GetByKey(key)
+	namespace, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
-		klog.Errorf("Fetching object with key %s from store failed with %v", key, err)
+		return fmt.Errorf("invalid key format: %v", err)
+	}
+
+	ingress, err := c.clientSet.NetworkingV1().Ingresses(namespace).Get(context.Background(), name, metav1.GetOptions{})
+	if err != nil {
+		log.Error().Str("Ingress", key).Err(err).Msg("Failed to fetch ingress from API")
 		return err
 	}
 
-	if !exists {
-		fmt.Printf("Ingress %s does not exist anymore\n", key)
-	} else {
-		fmt.Printf("Sync/Add/Update for Ingress %s\n", obj.(*networkingV1.Ingress).GetName())
+	if ingress.Spec.IngressClassName == nil {
+		log.Info().Str("Ingress", key).Msg("ingressClass no resources in use")
+		return nil
+	} else if *ingress.Spec.IngressClassName == c.ingressClass {
+		log.Info().Str("Ingress", key).Str("IngressClass", *ingress.Spec.IngressClassName).Msg("This resource is required")
+		newAddress := networkingV1.IngressLoadBalancerIngress{
+			IP: "0.0.0.0",
+		}
+		ingress.Status.LoadBalancer.Ingress = []networkingV1.IngressLoadBalancerIngress{newAddress}
+
+		updatedIngress, err := c.clientSet.NetworkingV1().Ingresses(namespace).UpdateStatus(context.Background(), ingress, metav1.UpdateOptions{})
+		if err != nil {
+			log.Error().Str("Ingress", key).Err(err).Msg("Failed to update ingress status")
+			return err
+		}
+		log.Info().Str("Ingress", key).Msg("Successfully updated ingress status")
+		log.Debug().Interface("UpdatedIngress", updatedIngress).Msg("Updated ingress status")
 	}
+
 	return nil
 }
 
@@ -133,5 +153,25 @@ func (c *IngressController) RunWorker() {
 }
 
 func (c *IngressController) Run(thread int, stopCh chan struct{}) {
+	defer runtime.HandleCrash()
+	defer c.queue.ShutDown()
+
+	log.Info().Msg("Running Ingress Controller...")
+	go c.informer.Run(stopCh)
+
+	wg := wgroup.Group{}
+	wg.Go(func() {
+		proxy.Render(c.clientSet)
+	})
+
+	if !cache.WaitForCacheSync(stopCh, c.informer.HasSynced) {
+		runtime.HandleError(fmt.Errorf("timed out waiting for ingress caches to sync"))
+		return
+	}
+
+	for i := 0; i < thread; i++ {
+		go wait.Until(c.RunWorker, time.Second, stopCh)
+	}
 	<-stopCh
+	log.Info().Msg("🛑 Ingress Controller has been gracefully stopped.")
 }

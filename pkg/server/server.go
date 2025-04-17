@@ -26,10 +26,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check if the request is using TLS (i.e., HTTPS)
+	host := r.Host
 	if r.TLS == nil {
 		// If not, redirect the HTTP request to HTTPS
-		redirectURL := "https://" + r.Host + r.URL.Path
+		redirectURL := "https://" + host + r.URL.Path
 		http.Redirect(w, r, redirectURL, http.StatusMovedPermanently)
 		return
 	}
@@ -46,47 +46,53 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// Get the associated Service resource in the same namespace
-		svc, err := s.Client.CoreV1().Services(ingresses.Namespace).Get(context.TODO(), s.ServiceName, metav1.GetOptions{})
-		if err != nil {
-			http.Error(w, "Service not found", http.StatusInternalServerError)
-			return
+		for _, rule := range ingresses.Spec.Rules {
+			if rule.Host == host {
+				// Get the associated Service resource in the same namespace
+				svc, err := s.Client.CoreV1().Services(ingresses.Namespace).Get(context.TODO(), s.ServiceName, metav1.GetOptions{})
+				if err != nil {
+					http.Error(w, "Service not found", http.StatusInternalServerError)
+					return
+				}
+
+				// Determine the protocol based on TLS in Ingress
+				var scheme string
+				if len(ingress.Spec.TLS) > 0 {
+					scheme = "https://"
+				} else {
+					scheme = "http://"
+				}
+
+				// Build the backend URL from the service ClusterIP and port
+				serviceScheme := "http://"
+				serviceIP := svc.Spec.ClusterIP
+				var backendURL *url.URL
+				backendURL, err = url.Parse(serviceScheme + serviceIP + ":" + s.ServicePort)
+				if err != nil {
+					http.Error(w, "BackendURL error", http.StatusInternalServerError)
+					return
+				}
+
+				log.Info().
+					Str("host", r.Host).
+					Str("path", r.URL.Path).
+					Str("backend", scheme+serviceIP+":"+s.ServicePort).
+					Msg("proxying request")
+
+				// Create a reverse proxy to forward the request to the backend service
+				proxy := httputil.NewSingleHostReverseProxy(backendURL)
+
+				// TLS verification
+				proxy.Transport = &http.Transport{
+					TLSClientConfig: &tls.Config{
+						InsecureSkipVerify: false,
+					},
+				}
+
+				// Serve the request via the reverse proxy
+				proxy.ServeHTTP(w, r)
+			}
 		}
 
-		// Determine the protocol based on TLS in Ingress
-		var scheme string
-		if len(ingress.Spec.TLS) > 0 {
-			scheme = "https://"
-		} else {
-			scheme = "http://"
-		}
-
-		// Build the backend URL from the service ClusterIP and port
-		serviceScheme := "http://"
-		serviceIP := svc.Spec.ClusterIP
-		backendURL, err := url.Parse(serviceScheme + serviceIP + ":" + s.ServicePort)
-		if err != nil {
-			http.Error(w, "BackendURL error", http.StatusInternalServerError)
-			return
-		}
-
-		log.Info().
-			Str("host", r.Host).
-			Str("path", r.URL.Path).
-			Str("backend", scheme+serviceIP+":"+s.ServicePort).
-			Msg("proxying request")
-
-		// Create a reverse proxy to forward the request to the backend service
-		proxy := httputil.NewSingleHostReverseProxy(backendURL)
-
-		// TLS verification
-		proxy.Transport = &http.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: false,
-			},
-		}
-
-		// Serve the request via the reverse proxy
-		proxy.ServeHTTP(w, r)
 	}
 }

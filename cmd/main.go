@@ -43,7 +43,7 @@ func main() {
 	}
 	log.Info().Msg("get kubernetes client success")
 
-	c := controller.NewIngressController(client)
+	c := controller.NewIngressController(client, ingressClass)
 	group := &wgroup.Group{}
 	group.Go(func() {
 		c.Run(5, nil)
