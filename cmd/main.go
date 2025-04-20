@@ -1,12 +1,12 @@
 package main
 
 import (
-	"dubbo-kubernetes-ingress-controller/cmd/wgroup"
-	"dubbo-kubernetes-ingress-controller/pkg/controller"
-	"dubbo-kubernetes-ingress-controller/pkg/proxy"
 	"flag"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	"ingress-controller/cmd/wgroup"
+	"ingress-controller/pkg/controller"
+	"ingress-controller/pkg/proxy"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -14,14 +14,14 @@ import (
 	"path/filepath"
 )
 
-const IngressClassFlagHelpStr = "Ingress class the dubbo community"
+const IngressClassFlagHelpStr = "Ingress class name"
 
 var (
 	ingressClass string
 )
 
 func main() {
-	flag.StringVar(&ingressClass, "ingressClass", "dubbo", IngressClassFlagHelpStr)
+	flag.StringVar(&ingressClass, "ingressClass", "default", IngressClassFlagHelpStr)
 	flag.Parse()
 
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})

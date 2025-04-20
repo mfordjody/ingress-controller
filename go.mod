@@ -1,4 +1,4 @@
-module dubbo-kubernetes-ingress-controller
+module ingress-controller
 
 go 1.23.0
 

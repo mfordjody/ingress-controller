@@ -13,10 +13,10 @@ import (
 )
 
 type Server struct {
-	Client      *kubernetes.Clientset
-	Host        string
-	ServiceName string
-	ServicePort string
+	Client *kubernetes.Clientset
+	Host   string
+	Name   string
+	Port   string
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {

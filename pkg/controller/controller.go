@@ -2,10 +2,10 @@ package controller
 
 import (
 	"context"
-	"dubbo-kubernetes-ingress-controller/cmd/wgroup"
-	"dubbo-kubernetes-ingress-controller/pkg/proxy"
 	"fmt"
 	"github.com/rs/zerolog/log"
+	"ingress-controller/cmd/wgroup"
+	"ingress-controller/pkg/proxy"
 	networkingV1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"

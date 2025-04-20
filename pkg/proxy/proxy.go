@@ -3,10 +3,10 @@ package proxy
 import (
 	"context"
 	"crypto/tls"
-	"dubbo-kubernetes-ingress-controller/pkg/server"
 	"fmt"
 	"github.com/demdxx/gocast"
 	"github.com/rs/zerolog/log"
+	"ingress-controller/pkg/server"
 	"io"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -32,17 +32,17 @@ func Render(client *kubernetes.Clientset) {
 				if _, ok := serverMap[path.Path]; !ok {
 					var srv *server.Server
 					srv = &server.Server{
-						ServiceName: path.Backend.Service.Name,
-						ServicePort: gocast.ToString(path.Backend.Service.Port.Number),
-						Host:        strings.ReplaceAll(host, "*", ".*"),
-						Client:      client,
+						Name:   path.Backend.Service.Name,
+						Port:   gocast.ToString(path.Backend.Service.Port.Number),
+						Host:   strings.ReplaceAll(host, "*", ".*"),
+						Client: client,
 					}
 					http.Handle(path.Path, srv)
 					serverMap[path.Path] = srv
 				} else {
 					srv := serverMap[path.Path]
-					srv.ServiceName = path.Backend.Service.Name
-					srv.ServicePort = gocast.ToString(path.Backend.Service.Port.Number)
+					srv.Name = path.Backend.Service.Name
+					srv.Port = gocast.ToString(path.Backend.Service.Port.Number)
 					srv.Host = strings.ReplaceAll(host, "*", ".*")
 				}
 			}
