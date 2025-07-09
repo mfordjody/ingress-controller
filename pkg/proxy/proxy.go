@@ -108,12 +108,20 @@ func Run(client *kubernetes.Clientset, ingressClass string) error {
 		}
 	}
 
-	go func() {
-		log.Info().Str("addr", "80").Msg("starting insecure HTTP server")
-		if err := http.ListenAndServe(":80", nil); err != nil {
-			log.Fatal().Err(err).Msg("Failed to start HTTP")
-		}
-	}()
+	// HTTP Server
+	httpServer := &http.Server{
+		Addr:    ":80",
+		Handler: nil,
+	}
+	if err := httpServer.ListenAndServe(); err != nil {
+		log.Fatal().Err(err).Msg("Failed to start HTTP")
+	}
+	log.Info().Str("addr", "80").Msg("starting HTTP server")
+
+	// log.Info().Str("addr", "80").Msg("starting insecure HTTP server")
+	// if err := http.ListenAndServe(":80", nil); err != nil {
+	// 	log.Fatal().Err(err).Msg("Failed to start HTTP")
+	// }
 
 	// HTTPS Server with SNI
 	httpsServer := &http.Server{

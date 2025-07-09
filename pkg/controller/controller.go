@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/rs/zerolog/log"
-	"ingress-controller/cmd/wgroup"
+	"ingress-controller/cmd/utils"
 	"ingress-controller/pkg/proxy"
 	networkingV1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -159,7 +159,7 @@ func (c *IngressController) Run(thread int, stopCh chan struct{}) {
 	log.Info().Msg("Running Ingress Controller...")
 	go c.informer.Run(stopCh)
 
-	wg := wgroup.Group{}
+	wg := utils.Group{}
 	wg.Go(func() {
 		proxy.Render(c.clientSet)
 	})
@@ -173,5 +173,5 @@ func (c *IngressController) Run(thread int, stopCh chan struct{}) {
 		go wait.Until(c.RunWorker, time.Second, stopCh)
 	}
 	<-stopCh
-	log.Info().Msg("🛑 Ingress Controller has been gracefully stopped.")
+	log.Info().Msg("Ingress Controller has been gracefully stopped.")
 }

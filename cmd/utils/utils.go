@@ -1,4 +1,4 @@
-package wgroup
+package utils
 
 import (
 	"sync"

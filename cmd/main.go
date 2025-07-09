@@ -4,7 +4,7 @@ import (
 	"flag"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-	"ingress-controller/cmd/wgroup"
+	"ingress-controller/cmd/utils"
 	"ingress-controller/pkg/controller"
 	"ingress-controller/pkg/proxy"
 	"k8s.io/client-go/kubernetes"
@@ -43,10 +43,10 @@ func main() {
 	}
 	log.Info().Msg("get kubernetes client success")
 
-	c := controller.NewIngressController(client, ingressClass)
-	group := &wgroup.Group{}
+	ingressController := controller.NewIngressController(client, ingressClass)
+	group := &utils.Group{}
 	group.Go(func() {
-		c.Run(5, nil)
+		ingressController.Run(5, nil)
 	})
 	group.Go(func() {
 		err := proxy.Run(client, ingressClass)
